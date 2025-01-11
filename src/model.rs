@@ -162,7 +162,6 @@ fn self_attention(
 
 /*########################################################################################################################### */
 // 计算 RMS Norm
-use ndarray::{Array, Array2, Array1}; // 使用 ndarray 来表示 Tensor
 pub fn mlp(
     residual: &mut Tensor<f32>,               // 更新后的残差
     hidden_states: &mut Tensor<f32>,           // 隐藏状态
