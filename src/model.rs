@@ -125,6 +125,10 @@ impl Llama<f32> {
         logits
     }
 
+
+
+    
+
     pub fn generate(
         &self,
         token_ids: &[u32],
@@ -156,6 +160,8 @@ fn self_attention(
     todo!("Implement self_attention");
 }
 
+
+
 fn mlp(
     residual: &mut Tensor<f32>,
     hidden_states: &mut Tensor<f32>,
@@ -167,7 +173,27 @@ fn mlp(
     rms_w: &Tensor<f32>,
     eps: f32,
 ) {
-    todo!("Implement mlp");
+    // RMS Normalization
+    OP::rms_norm(hidden_states, residual, rms_w, eps);
+
+    // Gate calculation: gate = hidden @ gate_weight.T
+    OP::matmul_transb(gate, 0.0, hidden_states, w_gate, 1.0);
+
+    // Up calculation: up = hidden @ up_weight.T
+    OP::matmul_transb(up, 0.0, hidden_states, w_up, 1.0);
+
+    // SwiGLU activation: act = gate * sigmoid(gate) * up
+    let gate_sigmoid = OP::sigmoid(gate);
+    let act = &mut Tensor::<f32>::default(&vec![hidden_states.size()[0], w_gate.size()[0]]); // (seq_len, di)
+    OP::mul(act, gate, gate_sigmoid); // gate * sigmoid(gate)
+    OP::mul(act, act, up); // gate * sigmoid(gate) * up
+
+    // Output calculation: output = act @ down_weight.T
+    let output = &mut Tensor::<f32>::default(&vec![hidden_states.size()[0], w_down.size()[0]]); // (seq_len, d)
+    OP::matmul_transb(output, 0.0, act, w_down, 1.0);
+
+    // Residual connection: residual = output + residual
+    OP::add(residual, output, residual);
 }
 
 #[test]
