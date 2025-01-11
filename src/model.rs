@@ -160,8 +160,55 @@ fn self_attention(
     todo!("Implement self_attention");
 }
 
+/*########################################################################################################################### */
+// 计算 RMS Norm
+pub fn rms_norm(y: &mut Tensor<f32>, x: &Tensor<f32>, w: &Tensor<f32>, epsilon: f32) {
+    // 确保 x, y, w 的形状一致
+    let x_data = x.data();
+    let y_data = y.data_mut();
+    let w_data = w.data();
+    let (batch_size, vec_size) = x.shape(); // 获取 batch 和每个向量的大小
+    // 对每个向量进行 RMS 归一化
+    for i in 0..batch_size {
+        let mut sum_of_squares = 0.0;
+        // 计算当前向量的平方和
+        for j in 0..vec_size {
+            let xi = x_data[i * vec_size + j];
+            sum_of_squares += xi * xi;
+        }
+        // 计算均方根（RMS），并加上 epsilon 防止除零
+        let rms = (sum_of_squares / vec_size as f32 + epsilon).sqrt();
+        // 归一化并乘以权重 w_i
+        for j in 0..vec_size {
+            let xi = x_data[i * vec_size + j];
+            let wi = w_data[j];
+            // 归一化结果并存储到 y 中
+            y_data[i * vec_size + j] = xi * wi / rms;
+        }
+    }
+}
 
+// Sigmoid 激活函数
+fn sigmoid(x: f32) -> f32 {
+    1.0 / (1.0 + (-x).exp())
+}
 
+// 实现 SwiGLU 操作
+fn swiglu(gate: &Tensor<f32>, up: &Tensor<f32>) -> Tensor<f32> {
+    let gate_data = gate.data();
+    let up_data = up.data();
+    let len = gate.size();
+
+    let mut result = Tensor::<f32>::new_like(gate);  // 创建新的张量用于存储结果
+    let result_data = result.data_mut();
+    for i in 0..len {
+        let gate_val = gate_data[i];
+        let up_val = up_data[i];
+        // 计算 gate * sigmoid(gate) * up
+        result_data[i] = gate_val * sigmoid(gate_val) * up_val;
+    }
+    result
+}
 fn mlp(
     residual: &mut Tensor<f32>,
     hidden_states: &mut Tensor<f32>,
@@ -175,23 +222,18 @@ fn mlp(
 ) {
     // RMS Normalization
     OP::rms_norm(hidden_states, residual, rms_w, eps);
-
     // Gate calculation: gate = hidden @ gate_weight.T
     OP::matmul_transb(gate, 0.0, hidden_states, w_gate, 1.0);
-
     // Up calculation: up = hidden @ up_weight.T
     OP::matmul_transb(up, 0.0, hidden_states, w_up, 1.0);
-
     // SwiGLU activation: act = gate * sigmoid(gate) * up
     let gate_sigmoid = OP::sigmoid(gate);
     let act = &mut Tensor::<f32>::default(&vec![hidden_states.size()[0], w_gate.size()[0]]); // (seq_len, di)
     OP::mul(act, gate, gate_sigmoid); // gate * sigmoid(gate)
     OP::mul(act, act, up); // gate * sigmoid(gate) * up
-
     // Output calculation: output = act @ down_weight.T
     let output = &mut Tensor::<f32>::default(&vec![hidden_states.size()[0], w_down.size()[0]]); // (seq_len, d)
     OP::matmul_transb(output, 0.0, act, w_down, 1.0);
-
     // Residual connection: residual = output + residual
     OP::add(residual, output, residual);
 }
