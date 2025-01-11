@@ -164,30 +164,28 @@ fn self_attention(
 
 /*########################################################################################################################### */
 pub fn rms_norm(y: &mut Tensor<f32>, x: &Tensor<f32>, w: &Tensor<f32>, epsilon: f32) {
-    // 确保 x, y, w 的形状一致
-    let x_data = x.data();
-    let y_data = y.data_mut();
-    let w_data = w.data();
     let (batch_size, vec_size) = x.shape(); // 获取 batch 和每个向量的大小
-    // 对每个向量进行 RMS 归一化
+
+    // 遍历每个 batch
     for i in 0..batch_size {
-        let mut sum_of_squares = 0.0;
         // 计算当前向量的平方和
+        let mut sum_of_squares = 0.0;
         for j in 0..vec_size {
-            let xi = x_data[i * vec_size + j];
-            sum_of_squares += xi * xi;
+            let xi = x.get(i, j); // 获取 x[i, j] 的值
+            sum_of_squares += xi * xi; // 累加平方和
         }
         // 计算均方根（RMS），并加上 epsilon 防止除零
         let rms = (sum_of_squares / vec_size as f32 + epsilon).sqrt();
         // 归一化并乘以权重 w_i
         for j in 0..vec_size {
-            let xi = x_data[i * vec_size + j];
-            let wi = w_data[j];
-            // 归一化结果并存储到 y 中
-            y_data[i * vec_size + j] = xi * wi / rms;
+            let xi = x.get(i, j); // 获取 x[i, j] 的值
+            let wi = w.get(j);    // 获取 w[j] 的值
+            // 归一化并存储到 y 中
+            y.set(i, j, xi * wi / rms); // 将归一化后的结果存入 y
         }
     }
 }
+
 // 计算 RMS Norm
 pub fn mlp(
     residual: &mut Tensor<f32>,               // 更新后的残差
