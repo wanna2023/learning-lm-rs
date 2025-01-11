@@ -1,5 +1,5 @@
 
-mod operators;
+
 use std::fs::File;
 use std::vec;
 
@@ -163,9 +163,67 @@ fn self_attention(
 }
 
 /*########################################################################################################################### */
-use operators::rms_norm;  // 引入 greet 函数
-use operators::masked_softmax; 
-use operators::swiglu; 
+// // 第一题
+// // y = silu(x) * y
+// // hint: this is an element-wise operation
+// pub fn swiglu(y: &mut Tensor<f32>, x: &Tensor<f32>) {
+//     // let len = y.size();
+//     // assert!(len == x.size());
+
+//     // let _y = unsafe { y.data_mut() };
+//     // let _x = x.data();
+
+//     todo!("实现 silu，这里给了一些前期准备工作的提示，你可以参考")
+// }
+// 这里的 Tensor 是你代码中的张量类型，假设它有 data_mut() 和 data() 方法来获取可变和不可变的原始数据
+pub fn swiglu(y: &mut Tensor<f32>, x: &Tensor<f32>) {
+    // 获取 x 和 y 的数据
+    let x_data = x.data();
+    let y_data = y.data_mut();
+    // 遍历每个元素，计算 Silu 和最终的 SwiGLU
+    let len = x.size();
+    for i in 0..len {
+        let xi = x_data[i];
+        // 计算 Silu(xi)
+        let silu_xi = xi / (1.0 + (-xi).exp());
+        // 计算 SwiGLU
+        y_data[i] = xi * silu_xi;
+    }
+}
+
+
+// // 第三题
+// // C = beta * C + alpha * A @ B^T
+// // hint: You don't need to do an explicit transpose of B
+// pub fn matmul_transb(c: &mut Tensor<f32>, beta: f32, a: &Tensor<f32>, b: &Tensor<f32>, alpha: f32) {
+//     todo!("实现 matmul_transb，计算前做一些必要的检查会帮助你后续调试");
+// }
+pub fn matmul_transb(c: &mut Tensor<f32>, beta: f32, a: &Tensor<f32>, b: &Tensor<f32>, alpha: f32) {
+    // 确保输入矩阵的维度匹配
+    assert_eq!(a.shape()[1], b.shape()[0], "Dimensions of A and B do not match for multiplication.");
+    assert_eq!(c.shape()[0], a.shape()[0], "Dimensions of C and A do not match.");
+    assert_eq!(c.shape()[1], b.shape()[0], "Dimensions of C and B^T do not match.");
+
+    // 第一步：C = beta * C
+    // 如果beta不为零，就对现有的C做缩放
+    for i in 0..c.shape()[0] {
+        for j in 0..c.shape()[1] {
+            c[(i, j)] *= beta;
+        }
+    }
+
+    // 第二步：计算 A @ B^T 并加上 alpha * A @ B^T
+    // 这里 B 的转置是通过矩阵乘法的规则隐式实现的
+    for i in 0..a.shape()[0] {
+        for j in 0..b.shape()[0] {
+            let mut sum = 0.0f32;
+            for k in 0..a.shape()[1] {
+                sum += a[(i, k)] * b[(j, k)];
+            }
+            c[(i, j)] += alpha * sum;
+        }
+    }
+}
 // 计算 RMS Norm
 pub fn mlp(
     residual: &mut Tensor<f32>,               // 更新后的残差
