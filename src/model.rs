@@ -161,6 +161,10 @@ fn self_attention(
 }
 
 /*########################################################################################################################### */
+mod operators;  // 这样你就可以访问 other.rs 中的内容
+use operators::rms_norm;  // 引入 greet 函数
+use operators::masked_softmax; 
+use operators::swiglu; 
 // 计算 RMS Norm
 pub fn mlp(
     residual: &mut Tensor<f32>,               // 更新后的残差
