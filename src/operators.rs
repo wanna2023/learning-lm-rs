@@ -39,6 +39,7 @@ pub fn rope(y: &mut Tensor<f32>, start_pos: usize, theta: f32) {
     }
 }
 
+
 // softmax(x) = exp(x - max) / sum(exp(x - max))
 // y = softmax(mask(x))
 pub fn masked_softmax(y: &mut Tensor<f32>) {
