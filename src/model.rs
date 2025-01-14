@@ -14,6 +14,7 @@ pub struct Llama<T> {
     vocab: usize,           // vocab size
     n_layers: usize,        // number of layers
     n_q_h: usize,           // number of heads for q
+
     n_kv_h: usize,          // number of heads for k and v
     d: usize,               // dimension of hidden states
     dqkv: usize,            // length of a single q, k, or v vector
@@ -163,21 +164,6 @@ fn self_attention(
 }
 
 /*########################################################################################################################### */
-fn self_attention(
-    hidden_states: &mut Tensor<f32>, // (seq, n_kv_h * n_groups * dqkv)
-    att_scores: &mut Tensor<f32>,    // (n_kv_h, n_groups, seq, total_seq)
-    q: &Tensor<f32>,                 // (seq, n_kv_h * n_groups * dqkv)
-    k: &Tensor<f32>,                 // (total_seq, n_kv_h * dqkv)
-    v: &Tensor<f32>,                 // (total_seq, n_kv_h * dqkv)
-    n_kv_h: usize,
-    n_groups: usize,
-    seq_len: usize,
-    total_seq_len: usize,
-    dqkv: usize,
-) {
-    todo!("Implement self_attention");
-}
-
 pub fn rms_norm(y: &mut Tensor<f32>, x: &Tensor<f32>, w: &Tensor<f32>, epsilon: f32) {
     // Ensure that y, x, and w have compatible shapes
     assert_eq!(y.shape(), x.shape(), "Tensors y and x must have the same shape");
@@ -243,35 +229,25 @@ fn mlp(
     rms_w: &Tensor<f32>,
     eps: f32,
 ) {
-    pub fn mlp(
-        residual: &mut Tensor<f32>,
-        hidden_states: &mut Tensor<f32>,
-        gate: &mut Tensor<f32>,
-        up: &mut Tensor<f32>,
-        w_up: &Tensor<f32>,
-        w_down: &Tensor<f32>,
-        w_gate: &Tensor<f32>,
-        rms_w: &Tensor<f32>,
-        eps: f32,
-    ) {
-        // Compute the gate using a weight matrix
-        matmul(gate, &residual, &w_gate, None); // gate = residual * w_gate (or equivalent)
-        // Apply RMS normalization to the gate
-        rms_norm(gate, gate, rms_w, eps);
-        // Compute the "up" transformation: up = residual * w_up
-        matmul(up, &residual, w_up, None);
-        // Apply RMS normalization to the "up" transformation
-        rms_norm(up, up, rms_w, eps);
-        // Compute the "down" transformation: hidden_states = up * w_down
-        matmul(hidden_states, up, w_down, None);
-        // Apply RMS normalization to the "down" transformation
-        rms_norm(hidden_states, hidden_states, rms_w, eps);
-        // Add residual connection: residual = residual + hidden_states
-        for (i, val) in residual.data_mut().iter_mut().enumerate() {
-            *val += hidden_states.data()[i];
-        }
+//    // Normalize the residual (assuming this is a LayerNorm operation)
+//    let hidden = rms_norm(residual, rms_w, eps); // Apply RMS norm on residual
+    
+//    // Gate computation (assuming gate_weight is w_gate)
+//    *gate = hidden.matmul(&w_gate.t()); // Perform matrix multiplication
+
+//    // Upward projection (assuming up_weight is w_up)
+//    *up = hidden.matmul(&w_up.t()); // Matrix multiplication for upward direction
+
+//    // SwiGLU activation: gate * sigmoid(gate) * up
+//    let act = gate * sigmoid(gate) * up; // SwiGLU activation
+
+//    // Output projection (assuming down_weight is w_down)
+//    let output = act.matmul(&w_down.t()); // Matrix multiplication for downward direction
+
+//    // Residual connection
+//    *residual = output + residual; // Add residual connection to output
+
     }
-}
 /*############################################################################################################################# */
 #[test]
 pub fn test_mlp() {
