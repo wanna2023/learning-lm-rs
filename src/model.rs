@@ -212,6 +212,7 @@ pub fn matmul(c: &mut Tensor<f32>, beta: f32, a: &Tensor<f32>, b: &Tensor<f32>, 
                 }
                 // Accessing the data using unsafe block
                 unsafe {
+                    
                     c.data_mut()[i * n + j] += alpha * sum;
                 }
             }
