@@ -163,58 +163,114 @@ fn self_attention(
 }
 
 /*########################################################################################################################### */
-pub fn rms_norm(y: &mut Tensor<f32>, x: &Tensor<f32>, w: &Tensor<f32>, epsilon: f32) {
-    let (batch_size, vec_size) = x.shape(); // 获取 batch 和每个向量的大小
+fn self_attention(
+    hidden_states: &mut Tensor<f32>, // (seq, n_kv_h * n_groups * dqkv)
+    att_scores: &mut Tensor<f32>,    // (n_kv_h, n_groups, seq, total_seq)
+    q: &Tensor<f32>,                 // (seq, n_kv_h * n_groups * dqkv)
+    k: &Tensor<f32>,                 // (total_seq, n_kv_h * dqkv)
+    v: &Tensor<f32>,                 // (total_seq, n_kv_h * dqkv)
+    n_kv_h: usize,
+    n_groups: usize,
+    seq_len: usize,
+    total_seq_len: usize,
+    dqkv: usize,
+) {
+    todo!("Implement self_attention");
+}
 
-    // 遍历每个 batch
-    for i in 0..batch_size {
-        // 计算当前向量的平方和
-        let mut sum_of_squares = 0.0;
-        for j in 0..vec_size {
-            let xi = x.get(i, j); // 获取 x[i, j] 的值
-            sum_of_squares += xi * xi; // 累加平方和
-        }
-        // 计算均方根（RMS），并加上 epsilon 防止除零
-        let rms = (sum_of_squares / vec_size as f32 + epsilon).sqrt();
-        // 归一化并乘以权重 w_i
-        for j in 0..vec_size {
-            let xi = x.get(i, j); // 获取 x[i, j] 的值
-            let wi = w.get(j);    // 获取 w[j] 的值
-            // 归一化并存储到 y 中
-            y.set(i, j, xi * wi / rms); // 将归一化后的结果存入 y
+pub fn rms_norm(y: &mut Tensor<f32>, x: &Tensor<f32>, w: &Tensor<f32>, epsilon: f32) {
+    // Ensure that y, x, and w have compatible shapes
+    assert_eq!(y.shape(), x.shape(), "Tensors y and x must have the same shape");
+    assert_eq!(w.shape()[0], x.shape()[0], "The size of w must match the first dimension of x");
+    let n = x.size();
+    // Compute the RMS of x: sqrt(sum(x_i^2) / n)
+    let sum_of_squares: f32 = x.data().iter().map(|&x_i| x_i * x_i).sum();
+    let rms = (sum_of_squares / n as f32).sqrt() + epsilon;
+    // Normalize and apply to y: y = (x / rms) * w
+    for (i, xi) in x.data().iter().enumerate() {
+        let weight = w.data()[i % w.size()]; // Ensure the weight corresponds to the current element of x
+        unsafe {
+            y.data_mut()[i] = (xi / rms) * weight;
         }
     }
 }
+pub fn matmul(c: &mut Tensor<f32>, beta: f32, a: &Tensor<f32>, b: &Tensor<f32>, alpha: f32) {
+    // Ensure the shapes of A, B, and C are compatible for matrix multiplication
+    assert_eq!(a.shape()[0], c.shape()[0], "Rows of A must match rows of C");
+    assert_eq!(b.shape()[0], a.shape()[1], "Columns of A must match rows of B");
+    assert_eq!(b.shape()[1], c.shape()[1], "Columns of B must match columns of C");
 
-// 计算 RMS Norm
-pub fn mlp(
-    residual: &mut Tensor<f32>,               // 更新后的残差
-    hidden_states: &mut Tensor<f32>,           // 隐藏状态
-    gate: &mut Tensor<f32>,                   // 门控值
-    up: &mut Tensor<f32>,                     // 上层输出
-    w_up: &Tensor<f32>,                       // 上层权重
-    w_down: &Tensor<f32>,                     // 下层权重
-    w_gate: &Tensor<f32>,                     // 门控权重
-    rms_w: &Tensor<f32>,                      // RMS 权重
-    eps: f32,                                 // 小常数 epsilon
+    let m = a.shape()[0]; // Number of rows in A and C
+    let k = a.shape()[1]; // Number of columns in A and rows in B
+    let n = b.shape()[1]; // Number of columns in B and C
+
+    // Scale C by beta
+    unsafe {
+        for i in 0..m {
+            for j in 0..n {
+                // Accessing the data using unsafe block
+                unsafe {
+                    c.data_mut()[i * n + j] *= beta;
+                }
+            }
+        }
+    }
+
+    // Perform matrix multiplication and update C
+    unsafe {
+        for i in 0..m {
+            for j in 0..n {
+                let mut sum = 0.0;
+                for k_idx in 0..k {
+                    sum += a.data()[i * k + k_idx] * b.data()[k_idx * n + j];
+                }
+                // Accessing the data using unsafe block
+                unsafe {
+                    c.data_mut()[i * n + j] += alpha * sum;
+                }
+            }
+        }
+    }
+}
+fn mlp(
+    residual: &mut Tensor<f32>,
+    hidden_states: &mut Tensor<f32>,
+    gate: &mut Tensor<f32>,
+    up: &mut Tensor<f32>,
+    w_up: &Tensor<f32>,
+    w_down: &Tensor<f32>,
+    w_gate: &Tensor<f32>,
+    rms_w: &Tensor<f32>,
+    eps: f32,
 ) {
-    // 1. RMS Normalization
-    rms_norm(residual, rms_w, eps);  // 使用 RMS 权重进行规范化
-    hidden_states.assign(residual);  // 更新隐藏状态
-    // 2. Gate calculation (x @ gate_weight.T)
-    // 使用矩阵乘法计算 gate
-    gate.assign(&residual.dot(&w_gate.t()));  // residual @ w_gate.T
-    // 3. Up calculation (x @ up_weight.T)
-    // 使用矩阵乘法计算 up
-    up.assign(&residual.dot(&w_up.t()));     // residual @ w_up.T
-    // 4. SwiGLU activation
-    swi_glu(up);  // 对 up 向量进行 SwiGLU 激活
-    // 5. Output calculation
-    let act = &gate.sigmoid() * up;  // Sigmoid 激活函数与 up 向量相乘
-    // 6. Final output calculation (act @ down_weight.T)
-    let output = act.dot(&w_down.t());  // act @ w_down.T
-    // 7. Residual update
-    residual.assign(&(output + residual));  // 输出加上残差
+    pub fn mlp(
+        residual: &mut Tensor<f32>,
+        hidden_states: &mut Tensor<f32>,
+        gate: &mut Tensor<f32>,
+        up: &mut Tensor<f32>,
+        w_up: &Tensor<f32>,
+        w_down: &Tensor<f32>,
+        w_gate: &Tensor<f32>,
+        rms_w: &Tensor<f32>,
+        eps: f32,
+    ) {
+        // Compute the gate using a weight matrix
+        matmul(gate, &residual, &w_gate, None); // gate = residual * w_gate (or equivalent)
+        // Apply RMS normalization to the gate
+        rms_norm(gate, gate, rms_w, eps);
+        // Compute the "up" transformation: up = residual * w_up
+        matmul(up, &residual, w_up, None);
+        // Apply RMS normalization to the "up" transformation
+        rms_norm(up, up, rms_w, eps);
+        // Compute the "down" transformation: hidden_states = up * w_down
+        matmul(hidden_states, up, w_down, None);
+        // Apply RMS normalization to the "down" transformation
+        rms_norm(hidden_states, hidden_states, rms_w, eps);
+        // Add residual connection: residual = residual + hidden_states
+        for (i, val) in residual.data_mut().iter_mut().enumerate() {
+            *val += hidden_states.data()[i];
+        }
+    }
 }
 /*############################################################################################################################# */
 #[test]

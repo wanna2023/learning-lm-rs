@@ -74,101 +74,105 @@ pub fn masked_softmax(y: &mut Tensor<f32>) {
     }
 }
 
+
+
+
+
+
+
+/*###################################################################################################################################### */
 // 第二题
 // pub fn rms_norm(y: &mut Tensor<f32>, x: &Tensor<f32>, w: &Tensor<f32>, epsilon: f32) {
 //     todo!("实现 rms_norm，计算前做一些必要的检查会帮助你后续调试")
 // }
 pub fn rms_norm(y: &mut Tensor<f32>, x: &Tensor<f32>, w: &Tensor<f32>, epsilon: f32) {
-    let (batch_size, vec_size) = x.shape(); // 获取 batch 和每个向量的大小
-
-    // 遍历每个 batch
-    for i in 0..batch_size {
-        // 计算当前向量的平方和
-        let mut sum_of_squares = 0.0;
-        for j in 0..vec_size {
-            let xi = x.get(i, j); // 获取 x[i, j] 的值
-            sum_of_squares += xi * xi; // 累加平方和
-        }
-        
-        // 计算均方根（RMS），并加上 epsilon 防止除零
-        let rms = (sum_of_squares / vec_size as f32 + epsilon).sqrt();
-        
-        // 归一化并乘以权重 w_i
-        for j in 0..vec_size {
-            let xi = x.get(i, j); // 获取 x[i, j] 的值
-            let wi = w.get(j);    // 获取 w[j] 的值
-            // 归一化并存储到 y 中
-            y.set(i, j, xi * wi / rms); // 将归一化后的结果存入 y
+    // Ensure that y, x, and w have compatible shapes
+    assert_eq!(y.shape(), x.shape(), "Tensors y and x must have the same shape");
+    assert_eq!(w.shape()[0], x.shape()[0], "The size of w must match the first dimension of x");
+    let n = x.size();
+    // Compute the RMS of x: sqrt(sum(x_i^2) / n)
+    let sum_of_squares: f32 = x.data().iter().map(|&x_i| x_i * x_i).sum();
+    let rms = (sum_of_squares / n as f32).sqrt() + epsilon;
+    // Normalize and apply to y: y = (x / rms) * w
+    for (i, xi) in x.data().iter().enumerate() {
+        let weight = w.data()[i % w.size()]; // Ensure the weight corresponds to the current element of x
+        unsafe {
+            y.data_mut()[i] = (xi / rms) * weight;
         }
     }
 }
-
-
-
-
-// // 第一题
-// // y = silu(x) * y
-// // hint: this is an element-wise operation
+/*###################################################################################################################################### */
+// 第一题
+// y = silu(x) * y
+// hint: this is an element-wise operation
 // pub fn swiglu(y: &mut Tensor<f32>, x: &Tensor<f32>) {
 //     // let len = y.size();
 //     // assert!(len == x.size());
-
 //     // let _y = unsafe { y.data_mut() };
 //     // let _x = x.data();
-
 //     todo!("实现 silu，这里给了一些前期准备工作的提示，你可以参考")
 // }
-// 这里的 Tensor 是你代码中的张量类型，假设它有 data_mut() 和 data() 方法来获取可变和不可变的原始数据
 pub fn swiglu(y: &mut Tensor<f32>, x: &Tensor<f32>) {
-    // 获取 x 和 y 的数据
-    let x_data = x.data();
-    let y_data = y.data_mut();
-    // 遍历每个元素，计算 Silu 和最终的 SwiGLU
-    let len = x.size();
-    for i in 0..len {
-        let xi = x_data[i];
-        // 计算 Silu(xi)
-        let silu_xi = xi / (1.0 + (-xi).exp());
-        // 计算 SwiGLU
-        y_data[i] = xi * silu_xi;
+    assert_eq!(y.shape(), x.shape(), "Tensors must have the same shape");
+    for i in 0..x.size() {
+        let xi = x.data()[i]; // x[i]
+        let si = xi * sigmoid(xi); // silu(xi) = xi * sigmoid(xi)
+        unsafe {
+            y.data_mut()[i] *= si; // y[i] = silu(xi) * y[i]
+        }
     }
 }
+fn sigmoid(x: f32) -> f32 {
+    1.0 / (1.0 + (-x).exp())
+}
 
-
-// // 第三题
-// // C = beta * C + alpha * A @ B^T
-// // hint: You don't need to do an explicit transpose of B
+//################################################################################################################################### */
+// 第三题
+// C = beta * C + alpha * A @ B^T
+// hint: You don't need to do an explicit transpose of B
 // pub fn matmul_transb(c: &mut Tensor<f32>, beta: f32, a: &Tensor<f32>, b: &Tensor<f32>, alpha: f32) {
 //     todo!("实现 matmul_transb，计算前做一些必要的检查会帮助你后续调试");
 // }
 pub fn matmul_transb(c: &mut Tensor<f32>, beta: f32, a: &Tensor<f32>, b: &Tensor<f32>, alpha: f32) {
-    // 确保输入矩阵的维度匹配
-    assert_eq!(a.shape()[1], b.shape()[0], "Dimensions of A and B do not match for multiplication.");
-    assert_eq!(c.shape()[0], a.shape()[0], "Dimensions of C and A do not match.");
-    assert_eq!(c.shape()[1], b.shape()[0], "Dimensions of C and B^T do not match.");
+    // Ensure the shapes of A, B, and C are compatible for matrix multiplication
+    assert_eq!(a.shape()[0], c.shape()[0], "Rows of A must match rows of C");
+    assert_eq!(b.shape()[0], a.shape()[1], "Columns of A must match rows of B");
+    assert_eq!(b.shape()[1], c.shape()[1], "Columns of B must match columns of C");
 
-    // 第一步：C = beta * C
-    // 如果beta不为零，就对现有的C做缩放
-    for i in 0..c.shape()[0] {
-        for j in 0..c.shape()[1] {
-            c[(i, j)] *= beta;
+    let m = a.shape()[0]; // Number of rows in A and C
+    let k = a.shape()[1]; // Number of columns in A and rows in B
+    let n = b.shape()[1]; // Number of columns in B and C
+
+    // Scale C by beta
+    unsafe {
+        for i in 0..m {
+            for j in 0..n {
+                // Accessing the data using unsafe block
+                unsafe {
+                    c.data_mut()[i * n + j] *= beta;
+                }
+            }
         }
     }
 
-    // 第二步：计算 A @ B^T 并加上 alpha * A @ B^T
-    // 这里 B 的转置是通过矩阵乘法的规则隐式实现的
-    for i in 0..a.shape()[0] {
-        for j in 0..b.shape()[0] {
-            let mut sum = 0.0f32;
-            for k in 0..a.shape()[1] {
-                sum += a[(i, k)] * b[(j, k)];
+    // Perform matrix multiplication and update C
+    unsafe {
+        for i in 0..m {
+            for j in 0..n {
+                let mut sum = 0.0;
+                for k_idx in 0..k {
+                    sum += a.data()[i * k + k_idx] * b.data()[k_idx * n + j];
+                }
+                // Accessing the data using unsafe block
+                unsafe {
+                    c.data_mut()[i * n + j] += alpha * sum;
+                }
             }
-            c[(i, j)] += alpha * sum;
         }
     }
 }
 
-
+//#####################################################################################################################################
 // Dot product of two tensors (treated as vectors)
 #[allow(unused)]
 pub fn dot(x: &Tensor<f32>, y: &Tensor<f32>) -> f32 {
