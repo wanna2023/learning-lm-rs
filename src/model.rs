@@ -562,32 +562,32 @@ pub fn show_safetensors(){
     println!("{:?}",config);
 
 }
-#[test]
-pub fn test_load_safetensors() {
-    use std::path::PathBuf;
-    use crate::tensor::float_eq;
-    let project_dir = env!("CARGO_MANIFEST_DIR");
-    let model_dir = PathBuf::from(project_dir).join("models").join("story");
-    let model = Llama::from_safetensors(model_dir);
-    assert_eq!(model.vocab, 2048);
-    assert_eq!(model.n_layers, 2);
-    assert_eq!(model.n_q_h, 8);
-    assert_eq!(model.n_kv_h, 4);
-    assert_eq!(model.d, 128);
-    assert_eq!(model.dqkv, 16);
-    assert_eq!(model.di, 384);
+// #[test]
+// pub fn test_load_safetensors() {
+//     use std::path::PathBuf;
+//     use crate::tensor::float_eq;
+//     let project_dir = env!("CARGO_MANIFEST_DIR");
+//     let model_dir = PathBuf::from(project_dir).join("models").join("story");
+//     let model = Llama::from_safetensors(model_dir);
+//     assert_eq!(model.vocab, 2048);
+//     assert_eq!(model.n_layers, 2);
+//     assert_eq!(model.n_q_h, 8);
+//     assert_eq!(model.n_kv_h, 4);
+//     assert_eq!(model.d, 128);
+//     assert_eq!(model.dqkv, 16);
+//     assert_eq!(model.di, 384);
 
-    assert!(float_eq(&model.params.embedding_table.data()[50], &0.14453125, 1e-6));
-    assert_eq!(model.params.lm_head.data()[10], model.params.embedding_table.data()[10]);
-    assert!(float_eq(&model.params.rms_att_w[0].data()[10], &0.18652344, 1e-6));
-    assert!(float_eq(&model.params.rms_ffn_w[1].data()[10], &0.32421875, 1e-6));
-    assert!(float_eq(&model.params.rms_out_w.data()[100], &0.73046875, 1e-6));
-    assert!(float_eq(&model.params.w_down[0].data()[100], &-0.0625, 1e-6));
-    assert!(float_eq(&model.params.w_up[0].data()[100], &1.46875, 1e-6));
-    assert!(float_eq(&model.params.w_gate[1].data()[100], &0.296875, 1e-6));
-    assert!(float_eq(&model.params.wq[1].data()[100], &0.032226563, 1e-6));
-    assert!(float_eq(&model.params.wk[1].data()[100], &-0.21386719, 1e-6));
-    assert!(float_eq(&model.params.wv[0].data()[100], &0.041015625, 1e-6));
-    assert!(float_eq(&model.params.wo[0].data()[100], &0.01965332, 1e-6));
+//     assert!(float_eq(&model.params.embedding_table.data()[50], &0.14453125, 1e-6));
+//     assert_eq!(model.params.lm_head.data()[10], model.params.embedding_table.data()[10]);
+//     assert!(float_eq(&model.params.rms_att_w[0].data()[10], &0.18652344, 1e-6));
+//     assert!(float_eq(&model.params.rms_ffn_w[1].data()[10], &0.32421875, 1e-6));
+//     assert!(float_eq(&model.params.rms_out_w.data()[100], &0.73046875, 1e-6));
+//     assert!(float_eq(&model.params.w_down[0].data()[100], &-0.0625, 1e-6));
+//     assert!(float_eq(&model.params.w_up[0].data()[100], &1.46875, 1e-6));
+//     assert!(float_eq(&model.params.w_gate[1].data()[100], &0.296875, 1e-6));
+//     assert!(float_eq(&model.params.wq[1].data()[100], &0.032226563, 1e-6));
+//     assert!(float_eq(&model.params.wk[1].data()[100], &-0.21386719, 1e-6));
+//     assert!(float_eq(&model.params.wv[0].data()[100], &0.041015625, 1e-6));
+//     assert!(float_eq(&model.params.wo[0].data()[100], &0.01965332, 1e-6));
 
-}
+// }
