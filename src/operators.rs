@@ -82,6 +82,7 @@ pub fn rms_norm(y: &mut Tensor<f32>, x: &Tensor<f32>, w: &Tensor<f32>, epsilon: 
     let num_vectors = x.size() / n;
 
 
+    
     for i in 0..num_vectors {
         let offset = i * n;
 
