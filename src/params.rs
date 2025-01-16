@@ -37,6 +37,7 @@ impl LLamaParams<f32> {
             Tensor::new(data, &shape.to_vec())
         };
 
+        
         LLamaParams {
             embedding_table: get_tensor("lm_head.weight"),
             rms_att_w: (0..config.num_hidden_layers)
