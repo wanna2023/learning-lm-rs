@@ -1,5 +1,5 @@
-use crate::tensor::Tensor;
 
+use crate::tensor::Tensor;
 // get (row) vectors from a 2D table given a list of indices
 pub fn gather(y: &mut Tensor<f32>, indices: &Tensor<u32>, table: &Tensor<f32>) {
     let length = indices.size();
@@ -71,25 +71,83 @@ pub fn masked_softmax(y: &mut Tensor<f32>) {
 }
 
 pub fn rms_norm(y: &mut Tensor<f32>, x: &Tensor<f32>, w: &Tensor<f32>, epsilon: f32) {
-    todo!("实现 rms_norm，计算前做一些必要的检查会帮助你后续调试")
+    let x_shape=x.shape();
+    let y_shape=y.shape();
+
+    let x_data=x.data();
+    let w_data=w.data();
+    let y_data=unsafe{y.data_mut()};
+
+    let n = x_shape[x_shape.len() - 1];
+    let num_vectors = x.size() / n;
+
+
+    
+    for i in 0..num_vectors {
+        let offset = i * n;
+
+        let sum_sq = x_data[offset..offset + n]
+            .iter()
+            .fold(0.0, |acc, &val| acc + val * val);
+        let rms = (sum_sq / n as f32 + epsilon).sqrt();
+
+
+        for j in 0..n {
+            y_data[offset + j] = w_data[j] * (x_data[offset + j] / rms);
+        }
+    }
 }
 
 // y = silu(x) * y
 // hint: this is an element-wise operation
 pub fn swiglu(y: &mut Tensor<f32>, x: &Tensor<f32>) {
-    // let len = y.size();
-    // assert!(len == x.size());
+     let len = y.size();
+     assert!(len == x.size());
 
-    // let _y = unsafe { y.data_mut() };
-    // let _x = x.data();
-
-    todo!("实现 silu，这里给了一些前期准备工作的提示，你可以参考")
+     let y = unsafe { y.data_mut() };
+     let x = x.data();
+    
+    for i in 0..len{
+        let sigmoid_x=1.0/(1.0+(-x[i]).exp());
+        let silu_x=sigmoid_x*x[i];
+        y[i]*=silu_x;
+    }
 }
 
 // C = beta * C + alpha * A @ B^T
 // hint: You don't need to do an explicit transpose of B
 pub fn matmul_transb(c: &mut Tensor<f32>, beta: f32, a: &Tensor<f32>, b: &Tensor<f32>, alpha: f32) {
-    todo!("实现 matmul_transb，计算前做一些必要的检查会帮助你后续调试");
+    let a_shape = a.shape();
+    let b_shape = b.shape();
+    let c_shape = c.shape();
+
+    assert_eq!(a_shape.len(), 2, "A must be a 2D matrix");
+    assert_eq!(b_shape.len(), 2, "B must be a 2D matrix");
+    assert_eq!(c_shape.len(), 2, "C must be a 2D matrix");
+
+    let m = a_shape[0];
+    let k = a_shape[1];
+    let n = b_shape[0];
+
+
+    assert_eq!(b_shape[1], k, "A's columns must match B's rows");
+    assert!(c_shape[0] == m && c_shape[1] == n, "C's shape must be (m, n)");
+
+    let a_data = a.data();
+    let b_data = b.data();
+    let c_data = unsafe { c.data_mut() };
+
+    for i in 0..m {
+        for j in 0..n {
+            let mut dot_product = 0.0;
+            for l in 0..k {
+                dot_product += a_data[i * k + l] * b_data[j * k + l];
+            }
+
+            let index = i * n + j;
+            c_data[index] = alpha * dot_product + beta * c_data[index];
+        }
+    }
 }
 
 // Dot product of two tensors (treated as vectors)
